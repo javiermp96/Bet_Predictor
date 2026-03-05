@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-bet-green: #00ff41;
+  --color-bet-dark: #121212;
+  --color-bet-card: #1e1e1e;
+  --color-bet-border: #333333;
+}
+
+@layer base {
+  body {
+    @apply bg-bet-dark text-white font-sans;
+  }
+}
+
+.bet-gradient {
+  background: linear-gradient(135deg, #1e1e1e 0%, #121212 100%);
+}
+
+.glass-panel {
+  @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-xl;
+}
+
