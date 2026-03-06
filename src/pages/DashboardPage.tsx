@@ -2,14 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Match, Prediction } from '../types';
 import { getLiveFixtures, getMatchPredictionStats } from '../services/apiFootballService';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { MatchFilterZone } from '../components/ui/MatchFilterZone';
 import { MatchList } from '../components/ui/MatchList';
+import { MatchSearchBar } from '../components/ui/MatchSearchBar';
 
 export function DashboardPage() {
     const [matches, setMatches] = useState<Match[]>([]);
     const [predictions, setPredictions] = useState<Record<string, Prediction>>({});
     const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
     const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+    const { user } = useAuth();
 
     const [selectedDate, setSelectedDate] = useState('today');
     const [searchParams, setSearchParams] = useSearchParams();
@@ -29,10 +34,7 @@ export function DashboardPage() {
                 setErrorStatus(null);
 
                 let dateFilter = new Date().toISOString().split('T')[0];
-                if (selectedDate === 'yesterday') {
-                    const d = new Date(); d.setDate(d.getDate() - 1);
-                    dateFilter = d.toISOString().split('T')[0];
-                } else if (selectedDate === 'tomorrow') {
+                if (selectedDate === 'tomorrow') {
                     const d = new Date(); d.setDate(d.getDate() + 1);
                     dateFilter = d.toISOString().split('T')[0];
                 }
@@ -60,10 +62,24 @@ export function DashboardPage() {
 
         setAnalyzingIds(prev => new Set(prev).add(match.id.toString()));
         try {
-            // Hit real prediction logic API
             const predictionResponse = await getMatchPredictionStats(match.id.toString());
             if (predictionResponse) {
                 setPredictions(prev => ({ ...prev, [match.id.toString()]: predictionResponse }));
+                // Trigger save to Supabase
+                if (user) {
+                    try {
+                        const { error } = await supabase.from('user_analyzed_matches').insert({
+                            user_id: user.id,
+                            match_id: match.id.toString()
+                        });
+                        if (error && error.code !== '23505') {
+                            // 23505 is Unique Violation, meaning it's already analyzed. Safe to ignore.
+                            console.warn('Could not save user analyzed match', error.message);
+                        }
+                    } catch (e) {
+                        console.error('Exception saving to user_analyzed_matches', e);
+                    }
+                }
             } else {
                 alert("Análisis matemático no disponible para este partido.");
             }
@@ -87,6 +103,14 @@ export function DashboardPage() {
         if (currentLeague !== 'Todas' && currentLeague !== 'Top 6') {
             if (!matchLeagueName.includes(filterStr)) return false;
         }
+
+        if (searchQuery.trim() !== '') {
+            const query = searchQuery.toLowerCase();
+            const homeName = (typeof match.homeTeam === 'string' ? match.homeTeam : match.homeTeam.name).toLowerCase();
+            const awayName = (typeof match.awayTeam === 'string' ? match.awayTeam : match.awayTeam.name).toLowerCase();
+            if (!homeName.includes(query) && !awayName.includes(query)) return false;
+        }
+
         return true;
     });
 
@@ -98,6 +122,8 @@ export function DashboardPage() {
                 currentLeague={currentLeague}
                 onSelectLeague={setCurrentLeague}
             />
+
+            <MatchSearchBar searchQuery={searchQuery} onSearchChange={setSearchQuery} />
 
             {errorStatus && (
                 <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-4 rounded-xl mb-6 font-medium text-sm">

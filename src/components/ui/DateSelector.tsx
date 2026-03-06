@@ -8,7 +8,6 @@ interface DateSelectorProps {
 
 export function DateSelector({ selectedDate, onSelectDate }: DateSelectorProps) {
     const dates = [
-        { label: 'Ayer', value: 'yesterday' },
         { label: 'Hoy', value: 'today', isHighlight: true },
         { label: 'Mañana', value: 'tomorrow' },
     ];
@@ -28,10 +27,6 @@ export function DateSelector({ selectedDate, onSelectDate }: DateSelectorProps) 
                     {date.label}
                 </button>
             ))}
-            <button className="flex items-center justify-center px-4 py-2 rounded-lg text-sm font-semibold bg-[#151820] text-gray-400 hover:bg-[#1f232e] hover:text-white border border-[#232733] transition-all ml-1">
-                <Calendar size={16} className="mr-2 opacity-70" />
-                Calendario
-            </button>
         </div>
     );
 }

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { Match, Prediction, MatchEvents, PredictionMarket, MatchPredictions } from '../types';
+import { supabase } from '../lib/supabase';
 
 // API-Football Key setup using Vite Environment variables
 const API_KEY = import.meta.env.VITE_API_FOOTBALL_KEY;
@@ -33,6 +34,24 @@ export async function getLiveFixtures(dateFilter?: string): Promise<Match[]> {
         // Dynamic actual date from system directly (e.g. 2024-11-20)
         const today = dateFilter || new Date().toISOString().split('T')[0];
 
+        // --- SUPABASE CACHE SYSTEM ---
+        try {
+            // First check if we already have the fixtures cached for today
+            const { data: cacheData, error: cacheError } = await supabase
+                .from('api_cache')
+                .select('data')
+                .eq('id', today)
+                .single();
+
+            if (cacheData && cacheData.data) {
+                console.log(`📦 [CACHE HIT] Partidos de hoy (${today}) consumidos de la base de datos.`);
+                return cacheData.data;
+            }
+        } catch (cacheErr) {
+            console.warn('Supabase cache miss o tabla no creada. Realizando petición a la API...', cacheErr);
+        }
+
+        console.log(`🌐 [API FETCH] Consumiendo API-Football para los partidos de (${today})...`);
         // Build the query to get all fixtures for today
         const response = await apiClient.get('/fixtures', {
             params: { date: today }
@@ -44,7 +63,7 @@ export async function getLiveFixtures(dateFilter?: string): Promise<Match[]> {
         // Production logic: Strictly filter only top leagues
         const topMatches = data.filter((item: any) => TOP_LEAGUES.includes(item.league.id));
 
-        return topMatches.map((item: any): Match => ({
+        const mappedMatches = topMatches.map((item: any): Match => ({
             id: item.fixture.id.toString(),
             leagueId: item.league.id,
             league: {
@@ -74,6 +93,22 @@ export async function getLiveFixtures(dateFilter?: string): Promise<Match[]> {
             },
             odds: { home: 0, draw: 0, away: 0 } // Odds require a separate endpoint call usually
         }));
+
+        // --- WRITE TO SUPABASE CACHE ---
+        try {
+            // Save the newly mapped matches to Supabase to prevent future API calls today
+            const { error: writeError } = await supabase.from('api_cache').upsert({
+                id: today,
+                data: mappedMatches,
+                updated_at: new Date().toISOString()
+            });
+            if (!writeError) console.log(`💾 [CACHE SAVED] Partidos del ${today} guardados en la base de datos con éxito.`);
+            else console.warn(`Cache write failed. Please ensure 'api_cache' table exists.`, writeError.message);
+        } catch (e) {
+            console.warn('Cache write failed exception.', e);
+        }
+
+        return mappedMatches;
     } catch (error) {
         console.error('Error fetching live fixtures from API-Football:', error);
         return [];

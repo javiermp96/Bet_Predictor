@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Match } from '../types';
 import { getUpcomingFixtures } from '../services/apiFootballService';
 import { CalendarRange, Activity } from 'lucide-react';
+import { MatchSearchBar } from '../components/ui/MatchSearchBar';
 
 export function UpcomingMatchesPage() {
     const [matches, setMatches] = useState<Match[]>([]);
     const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         async function loadMatches() {
@@ -17,7 +19,17 @@ export function UpcomingMatchesPage() {
         loadMatches();
     }, []);
 
-    const groupedMatches = matches.reduce((acc, match) => {
+    const filteredMatches = matches.filter(match => {
+        if (searchQuery.trim() !== '') {
+            const query = searchQuery.toLowerCase();
+            const homeName = (typeof match.homeTeam === 'string' ? match.homeTeam : match.homeTeam.name).toLowerCase();
+            const awayName = (typeof match.awayTeam === 'string' ? match.awayTeam : match.awayTeam.name).toLowerCase();
+            if (!homeName.includes(query) && !awayName.includes(query)) return false;
+        }
+        return true;
+    });
+
+    const groupedMatches = filteredMatches.reduce((acc, match) => {
         const date = match.date;
         if (!acc[date]) acc[date] = [];
         acc[date].push(match);
@@ -31,9 +43,12 @@ export function UpcomingMatchesPage() {
                     <CalendarRange className="text-blue-500" size={32} />
                     Próximos Partidos
                 </h2>
-                <p className="text-gray-400 max-w-2xl">
+                <p className="text-gray-400 max-w-2xl mt-4">
                     Agenda semanal filtrada a las principales ligas Europeas. Este módulo es puramente informativo, las cuotas IA se reservan exclusivamente para la jornada en vivo actual y las pre-match de las previas 24h.
                 </p>
+                <div className="mt-6">
+                    <MatchSearchBar searchQuery={searchQuery} onSearchChange={setSearchQuery} />
+                </div>
             </div>
 
             {loading ? (
@@ -42,11 +57,11 @@ export function UpcomingMatchesPage() {
                         <div key={i} className="h-32 bg-[#0f1115] border border-[#2a2e39] rounded-2xl animate-pulse"></div>
                     ))}
                 </div>
-            ) : matches.length === 0 ? (
+            ) : filteredMatches.length === 0 ? (
                 <div className="flex flex-col items-center justify-center p-12 bg-[#12141a] rounded-xl border border-[#232733]">
                     <Activity size={32} className="text-gray-600 mb-4" />
-                    <h3 className="text-white font-bold text-lg mb-1">Sin Partidos Programados</h3>
-                    <p className="text-gray-500 text-sm">No hay actividad TOP 6 registrada en los próximos 7 días.</p>
+                    <h3 className="text-white font-bold text-lg mb-1">Sin Partidos Encontrados</h3>
+                    <p className="text-gray-500 text-sm">{searchQuery ? 'No hay resultados que coincidan con tu búsqueda.' : 'No hay actividad TOP 6 registrada en los próximos 7 días.'}</p>
                 </div>
             ) : (
                 <div className="space-y-8">

@@ -76,18 +76,14 @@ export function TopNavbar() {
                 <button className="p-2 text-gray-400 hover:text-white transition-colors">
                     <Search size={20} />
                 </button>
-                <button className="p-2 text-gray-400 hover:text-white transition-colors relative group">
-                    <Bell size={20} className="group-hover:animate-swing" />
-                    <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-[#0f1115]"></span>
-                </button>
 
                 {/* User Menu */}
                 <div className="relative" ref={menuRef}>
                     <button
                         onClick={() => setShowMenu(!showMenu)}
                         className={`ml-2 w-9 h-9 rounded-full bg-gradient-to-br border flex items-center justify-center text-white font-bold text-xs shadow-lg transition-colors ${isAdmin
-                                ? 'from-red-900 to-red-950 border-red-500/50 hover:border-red-500'
-                                : 'from-gray-800 to-gray-900 border-bet-border hover:border-bet-green/50'
+                            ? 'from-red-900 to-red-950 border-red-500/50 hover:border-red-500'
+                            : 'from-gray-800 to-gray-900 border-bet-border hover:border-bet-green/50'
                             }`}
                         title={user?.email || 'Usuario'}
                     >

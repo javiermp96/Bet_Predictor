@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { History, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { getPastFixtures, getMatchPredictionStats } from '../services/apiFootballService';
 import { Match, Prediction } from '../types';
+import { MatchSearchBar } from '../components/ui/MatchSearchBar';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
 interface ResultEvaluation {
     match: Match;
@@ -13,11 +16,19 @@ interface ResultEvaluation {
 export function HistoryPage() {
     const [evaluations, setEvaluations] = useState<ResultEvaluation[]>([]);
     const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+    const { user } = useAuth();
 
     useEffect(() => {
         async function evaluateResults() {
             setLoading(true);
             try {
+                if (!user) {
+                    setEvaluations([]);
+                    setLoading(false);
+                    return;
+                }
+
                 const pastMatches = await getPastFixtures();
 
                 if (pastMatches.length === 0) {
@@ -25,10 +36,25 @@ export function HistoryPage() {
                     return;
                 }
 
+                // Query Supabase for this user's analyzed matches
+                const { data: userMatchesData, error: dbError } = await supabase
+                    .from('user_analyzed_matches')
+                    .select('match_id')
+                    .eq('user_id', user.id);
+
+                if (dbError) {
+                    console.warn("Could not fetch user matches from DB", dbError);
+                }
+
+                const userAnalyzedIds = new Set((userMatchesData || []).map(row => row.match_id));
+
                 const evals: ResultEvaluation[] = [];
 
-                // For performance, evaluate top 5 matches
-                const matchesToEvaluate = pastMatches.slice(0, 5);
+                // Keep only past matches that the user actually clicked "Analyze" on BEFORE
+                const personalizedMatches = pastMatches.filter(m => userAnalyzedIds.has(m.id.toString()));
+
+                // For performance, evaluate up to 10
+                const matchesToEvaluate = personalizedMatches.slice(0, 10);
 
                 for (const match of matchesToEvaluate) {
                     // We regenerate the prediction. In a real DB, we'd fetch what we *saved* before the match.
@@ -71,8 +97,18 @@ export function HistoryPage() {
         evaluateResults();
     }, []);
 
-    const wonCount = evaluations.filter(e => e.outcome === 'WON').length;
-    const totalEvaluated = evaluations.filter(e => e.outcome === 'WON' || e.outcome === 'LOST').length;
+    const filteredEvaluations = evaluations.filter(evalItem => {
+        if (searchQuery.trim() !== '') {
+            const query = searchQuery.toLowerCase();
+            const homeName = (typeof evalItem.match.homeTeam === 'string' ? evalItem.match.homeTeam : evalItem.match.homeTeam.name).toLowerCase();
+            const awayName = (typeof evalItem.match.awayTeam === 'string' ? evalItem.match.awayTeam : evalItem.match.awayTeam.name).toLowerCase();
+            if (!homeName.includes(query) && !awayName.includes(query)) return false;
+        }
+        return true;
+    });
+
+    const wonCount = filteredEvaluations.filter(e => e.outcome === 'WON').length;
+    const totalEvaluated = filteredEvaluations.filter(e => e.outcome === 'WON' || e.outcome === 'LOST').length;
     const accuracy = totalEvaluated > 0 ? Math.round((wonCount / totalEvaluated) * 100) : 0;
 
     return (
@@ -85,7 +121,7 @@ export function HistoryPage() {
                         Resultados & Backtesting
                     </h2>
                     <p className="text-gray-400 max-w-2xl">
-                        Evaluación algorítmica. Comprobamos las predicciones que dio nuestra IA contra los resultados finales reales una vez que los partidos concluyen.
+                        Evaluación algorítmica de tus predicciones guardadas. Comprobamos las cuotas que pediste analizar contra los resultados finales reales una vez que los partidos concluyen.
                     </p>
                 </div>
 
@@ -97,6 +133,8 @@ export function HistoryPage() {
                 )}
             </div>
 
+            <MatchSearchBar searchQuery={searchQuery} onSearchChange={setSearchQuery} />
+
             {loading ? (
                 <div className="flex flex-col items-center justify-center p-12 bg-[#12141a] rounded-xl border border-[#232733] min-h-[300px]">
                     <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -105,12 +143,18 @@ export function HistoryPage() {
             ) : evaluations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center p-12 bg-[#12141a] rounded-xl border border-[#232733]">
                     <AlertCircle size={32} className="text-gray-600 mb-4" />
-                    <h3 className="text-white font-bold text-lg mb-1">Sin Resultados Recientes</h3>
-                    <p className="text-gray-500 text-sm">No hay partidos de las ligas principales finalizados en las últimas 48 horas.</p>
+                    <h3 className="text-white font-bold text-lg mb-1">Sin Análisis Guardados</h3>
+                    <p className="text-gray-500 text-sm">No has analizado ningún partido recientemente o aún no han finalizado.</p>
+                </div>
+            ) : filteredEvaluations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center p-12 bg-[#12141a] rounded-xl border border-[#232733]">
+                    <AlertCircle size={32} className="text-gray-600 mb-4" />
+                    <h3 className="text-white font-bold text-lg mb-1">Sin Resultados Encontrados</h3>
+                    <p className="text-gray-500 text-sm">{searchQuery ? 'No hay resultados que coincidan con tu búsqueda.' : 'No hay partidos coincidentes.'}</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {evaluations.map((evalItem, idx) => (
+                    {filteredEvaluations.map((evalItem, idx) => (
                         <div key={idx} className={`bg-[#12141a] p-5 rounded-2xl border shadow-lg relative overflow-hidden transition-all group hover:-translate-y-1
                     ${evalItem.outcome === 'WON' ? 'border-bet-green/30 hover:border-bet-green/60'
                                 : evalItem.outcome === 'LOST' ? 'border-red-500/30 hover:border-red-500/60'

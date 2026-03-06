@@ -14,6 +14,7 @@ export function AdminDashboardPage() {
     const [users, setUsers] = useState<UserRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [filterDate, setFilterDate] = useState<string>('');
 
     useEffect(() => {
         async function fetchUsers() {
@@ -111,6 +112,18 @@ export function AdminDashboardPage() {
                         <Users size={18} className="text-gray-400" />
                         Cuentas Registradas
                     </h3>
+                    <div className="flex items-center gap-3">
+                        <Calendar size={18} className="text-gray-400 hidden sm:block" />
+                        <input
+                            type="date"
+                            value={filterDate}
+                            onChange={(e) => setFilterDate(e.target.value)}
+                            className="bg-[#0b0c10] border border-[#232733] text-gray-300 text-sm rounded-lg focus:ring-bet-green focus:border-bet-green block px-3 py-1.5 focus:outline-none"
+                        />
+                        {filterDate && (
+                            <button onClick={() => setFilterDate('')} className="text-xs text-gray-400 hover:text-white transition-colors">Limpiar</button>
+                        )}
+                    </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -133,7 +146,13 @@ export function AdminDashboardPage() {
                                         </div>
                                     </td>
                                 </tr>
-                            ) : users.map((u) => (
+                            ) : users.filter(u => filterDate ? new Date(u.created_at).toISOString().split('T')[0] === filterDate : true).length === 0 ? (
+                                <tr>
+                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                                        No se encontraron usuarios para la fecha seleccionada.
+                                    </td>
+                                </tr>
+                            ) : users.filter(u => filterDate ? new Date(u.created_at).toISOString().split('T')[0] === filterDate : true).map((u) => (
                                 <tr key={u.id} className="hover:bg-white/[0.02] transition-colors group">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
