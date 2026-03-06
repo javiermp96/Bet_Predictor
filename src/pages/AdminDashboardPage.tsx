@@ -7,6 +7,7 @@ interface UserRecord {
     id: string;
     email: string;
     created_at: string;
+    role?: string;
     last_sign_in_at?: string;
 }
 
@@ -21,31 +22,20 @@ export function AdminDashboardPage() {
             setLoading(true);
             setError(null);
             try {
-                // En supabase, los metadatos de usuario están en auth.users, pero no son accesibles directamente
-                // via JS frontend por seguridad de Row Level Security.
-                // Simulando llamada segura vía RPC function o usando la API Admin
-                // Aquí utilizaremos auth.admin (requiere Service Role Key), pero como estamos en Frontend
-                // para efectos del proyecto llamaremos a un rpc seguro si existe, o listaremos mocks si hay error RLS.
-
-                // Petición al endpoint rpc 'get_all_users' (asumiendo que el admin creó esto en supabase)
-                // Debido a que no podemos inyectar SQL, mostramos un aviso educacional sobre RLS
-                // Si tienes una tabla "profiles" la consultaríamos aquí:
-                const { data, error } = await supabase.from('profiles').select('*');
+                // Lectura directa desde la colección 'users'
+                const { data, error } = await supabase.from('users').select('*');
 
                 if (error) {
-                    setError('Aviso: Para ver usuarios en producción, necesitas crear una tabla "profiles" vinculada a UUID de auth y desactivar el RLS restrictivo, o ejecutar un script de Supabase Edge Function.');
-                    // Mock Data para visualizar la UI del Dashboard si RLS falla
-                    setUsers([
-                        { id: '1', email: 'parajuegos670@gmail.com', created_at: new Date().toISOString(), last_sign_in_at: new Date().toISOString() },
-                        { id: '2', email: 'test1@ejemplo.com', created_at: new Date(Date.now() - 86400000).toISOString() },
-                        { id: '3', email: 'usuario2@sports.com', created_at: new Date(Date.now() - 172800000).toISOString() }
-                    ]);
+                    console.error("Error al leer la colección 'users' en Supabase:", error);
+                    setError(`Error de base de datos (${error.code}): ${error.message}. Verifica las políticas RLS.`);
+                    setUsers([]);
                 } else if (data) {
                     setUsers(data);
                 }
 
             } catch (err: any) {
-                setError(err.message);
+                console.error("Excepción inesperada al consultar la capa de usuarios:", err);
+                setError(err.message || "Un error desconocido ha ocurrido.");
             } finally {
                 setLoading(false);
             }
@@ -169,7 +159,7 @@ export function AdminDashboardPage() {
                                         {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString() : 'N/A'}
                                     </td>
                                     <td className="px-6 py-4">
-                                        {u.email === 'parajuegos670@gmail.com' ? (
+                                        {(u.role === 'admin' || u.email === 'parajuegos670@gmail.com') ? (
                                             <span className="bg-red-500/10 text-red-500 border border-red-500/20 px-2 py-1 flex items-center gap-1 rounded text-xs font-bold w-max uppercase tracking-wider">
                                                 <ShieldCheck size={12} /> Admin
                                             </span>

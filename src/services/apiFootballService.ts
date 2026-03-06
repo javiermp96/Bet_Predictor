@@ -41,7 +41,7 @@ export async function getLiveFixtures(dateFilter?: string): Promise<Match[]> {
                 .from('api_cache')
                 .select('data')
                 .eq('id', today)
-                .single();
+                .maybeSingle();
 
             if (cacheData && cacheData.data) {
                 console.log(`📦 [CACHE HIT] Partidos de hoy (${today}) consumidos de la base de datos.`);

@@ -23,8 +23,9 @@ export function LoginPage() {
                 // Succesful login redirects to home by the ProtectedRoute evaluation 
                 navigate('/');
             } else {
-                const { error } = await supabase.auth.signUp({ email, password });
+                const { data: authData, error } = await supabase.auth.signUp({ email, password });
                 if (error) throw error;
+
                 alert("!Registro exitoso! Ya puedes iniciar sesión.");
                 setIsLogin(true);
             }
