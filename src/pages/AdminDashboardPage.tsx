@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
-import { ShieldCheck, Mail, Calendar, Users } from 'lucide-react';
+import { ShieldCheck, Mail, Calendar, Users, Activity, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface UserRecord {
@@ -16,6 +16,7 @@ export function AdminDashboardPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [filterDate, setFilterDate] = useState<string>('');
+    const [apiLimit, setApiLimit] = useState<{ remaining: number; limit: number } | null>(null);
 
     useEffect(() => {
         async function fetchUsers() {
@@ -41,7 +42,21 @@ export function AdminDashboardPage() {
             }
         }
 
+        async function fetchApiLimit() {
+            const { data, error } = await supabase.from('api_cache').select('data').eq('id', 'api_limits').maybeSingle();
+            if (!error && data?.data) {
+                setApiLimit(data.data as { remaining: number; limit: number });
+            }
+        }
+
         fetchUsers();
+        fetchApiLimit();
+
+        // Listen to active local triggers across the page
+        const handleLocalUpdate = () => fetchApiLimit();
+        window.addEventListener('api-limit-updated', handleLocalUpdate);
+
+        return () => window.removeEventListener('api-limit-updated', handleLocalUpdate);
     }, []);
 
     return (
@@ -70,10 +85,34 @@ export function AdminDashboardPage() {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-[#12141a] border border-[#232733] p-6 rounded-2xl">
+                {/* 1. Traffic API Monitor widget */}
+                <div className={`p-6 rounded-2xl border transition-all ${apiLimit?.remaining === 0 ? 'bg-red-500/5 shadow-[0_0_15px_rgba(239,68,68,0.1)] border-red-500/20' : 'bg-[#12141a] border-[#232733]'
+                    }`}>
                     <div className="flex justify-between items-start">
                         <div>
-                            <p className="text-gray-500 font-bold text-xs uppercase tracking-widest mb-1">Usuarios Totales</p>
+                            <p className="text-gray-500 font-bold text-xs uppercase tracking-widest mb-1">
+                                Peticiones API
+                            </p>
+                            <h3 className={`text-4xl font-black tracking-tight ${apiLimit?.remaining === 0 ? 'text-red-500' : 'text-white'
+                                }`}>
+                                {apiLimit ? `${apiLimit.remaining}` : '--'}
+                                <span className="text-lg text-gray-500 font-bold tracking-normal">/{apiLimit?.limit || '--'}</span>
+                            </h3>
+                            <p className={`text-xs mt-2 font-medium ${apiLimit?.remaining === 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                                Límite reinicia a las 00:00 UTC (01:00 ES)
+                            </p>
+                        </div>
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${apiLimit?.remaining === 0 ? 'bg-red-500/10' : 'bg-bet-green/10'
+                            }`}>
+                            <Activity size={20} className={apiLimit?.remaining === 0 ? 'text-red-500' : 'text-bet-green'} />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-[#12141a] border border-[#232733] p-6 rounded-2xl flex flex-col justify-between">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <p className="text-gray-500 font-bold text-xs uppercase tracking-widest mb-1">Usuarios Registrados</p>
                             <h3 className="text-4xl font-black text-white">{users.length}</h3>
                         </div>
                         <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
@@ -82,16 +121,24 @@ export function AdminDashboardPage() {
                     </div>
                 </div>
 
-                <div className="bg-[#12141a] border border-[#232733] p-6 rounded-2xl">
-                    <div className="flex justify-between items-start">
+                <div className="bg-[#12141a] border border-[#232733] p-6 rounded-2xl flex flex-col justify-between items-start">
+                    <div className="flex justify-between items-start w-full">
                         <div>
-                            <p className="text-gray-500 font-bold text-xs uppercase tracking-widest mb-1">Suscripciones Pro</p>
-                            <h3 className="text-4xl font-black text-white">0</h3>
+                            <p className="text-gray-500 font-bold text-xs uppercase tracking-widest mb-1">Control Manual</p>
+                            <h3 className="text-lg font-bold text-white mb-2">Refrescar Partidos</h3>
                         </div>
-                        <div className="w-10 h-10 bg-bet-green/10 rounded-lg flex items-center justify-center">
-                            <ShieldCheck size={20} className="text-bet-green" />
+                        <div className="w-10 h-10 bg-orange-500/10 rounded-lg flex items-center justify-center">
+                            <RefreshCw size={20} className="text-orange-500" />
                         </div>
                     </div>
+
+                    <button
+                        disabled={apiLimit?.remaining === 0 || loading}
+                        onClick={() => window.location.reload()}
+                        className="w-full bg-[#232733] hover:bg-[#2a2f3d] disabled:opacity-50 text-white py-2 rounded-lg text-sm font-bold mt-2 transition-colors border border-gray-700"
+                    >
+                        {apiLimit?.remaining === 0 ? 'Bloqueado (Límite 429)' : 'Forzar Actualización UI'}
+                    </button>
                 </div>
             </div>
 

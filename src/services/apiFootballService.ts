@@ -14,6 +14,31 @@ const apiClient = axios.create({
     },
 });
 
+// --- API RATE LIMIT MONITORING INTERCEPTOR ---
+apiClient.interceptors.response.use((response) => {
+    // API-Football injects these headers automatically
+    const remaining = response.headers['x-ratelimit-requests-remaining'];
+    const limit = response.headers['x-ratelimit-requests-limit'];
+
+    if (remaining) {
+        // Save the rate limit state persistently in our database for the Admin to see
+        supabase.from('api_cache').upsert({
+            id: 'api_limits',
+            data: { remaining: parseInt(remaining, 10), limit: parseInt(limit || '100', 10) },
+            updated_at: new Date().toISOString()
+        }).then(({ error }) => {
+            if (error) console.error('Error sincronizando los límites de API:', error);
+        });
+
+        // Fire a local event if the Admin is browsing right now
+        window.dispatchEvent(new Event('api-limit-updated'));
+    }
+
+    return response;
+}, (error) => {
+    return Promise.reject(error);
+});
+
 // Top European Leagues IDs in API-Football
 const TOP_LEAGUES = [
     2,   // UEFA Champions League
